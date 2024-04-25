@@ -3,9 +3,12 @@ package celeritas
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
+	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 )
 
@@ -16,10 +19,24 @@ type Celeritas struct {
 	ErrorLog *log.Logger
 	InfoLog  *log.Logger
 	RootPath string
+	config   config
+	Routes   *chi.Mux
+}
+
+type config struct {
+	port     string
+	renderer string
 }
 
 var version = "1.0.0"
 
+// New initializes a new instance of the Celeritas struct with the given rootPath.
+//
+// Parameters:
+// - rootPath: The root path for the application.
+//
+// Returns:
+// - error: An error if there was a problem initializing the Celeritas struct.
 func (c *Celeritas) New(rootPath string) error {
 	pathConfig := initPaths{
 		rootPath:    rootPath,
@@ -48,10 +65,22 @@ func (c *Celeritas) New(rootPath string) error {
 	c.ErrorLog = errorLog
 	c.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
 	c.Version = version
+	c.RootPath = rootPath
+	c.Routes = c.routes().(*chi.Mux)
+
+	c.config = config{
+		port:     os.Getenv("PORT"),
+		renderer: os.Getenv("RENDERER"),
+	}
 
 	return nil
 }
 
+// Init initializes Celeritas with the provided paths.
+//
+// Parameters:
+// - p: the paths needed for initialization.
+// Return type: error.
 func (c Celeritas) Init(p initPaths) error {
 	root := p.rootPath
 
@@ -62,6 +91,21 @@ func (c Celeritas) Init(p initPaths) error {
 		}
 	}
 	return nil
+}
+
+func (c *Celeritas) ListenAndServe() {
+	srv := &http.Server{
+		Addr:         fmt.Sprintf(":%s", os.Getenv("PORT")),
+		ErrorLog:     c.ErrorLog,
+		Handler:      c.routes(),
+		IdleTimeout:  30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 600 * time.Second,
+	}
+
+	c.InfoLog.Printf("Starting server on port %s", os.Getenv("PORT"))
+	err := srv.ListenAndServe()
+	c.ErrorLog.Fatal(err)
 }
 
 func (c *Celeritas) checkDotEnv(path string) error {
@@ -75,6 +119,7 @@ func (c *Celeritas) checkDotEnv(path string) error {
 
 }
 
+// startLoggers initializes and returns two loggers, one for INFO and one for ERROR.
 func (c *Celeritas) startLoggers() (*log.Logger, *log.Logger) {
 	var infoLog *log.Logger
 	var errorLog *log.Logger
