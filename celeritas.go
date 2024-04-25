@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
+	"github.com/tedxted/celeritas/render"
 )
 
 type Celeritas struct {
@@ -21,6 +22,7 @@ type Celeritas struct {
 	RootPath string
 	config   config
 	Routes   *chi.Mux
+	Render   *render.Render
 }
 
 type config struct {
@@ -67,6 +69,8 @@ func (c *Celeritas) New(rootPath string) error {
 	c.Version = version
 	c.RootPath = rootPath
 	c.Routes = c.routes().(*chi.Mux)
+
+	c.Render = c.createRenderer(c)
 
 	c.config = config{
 		port:     os.Getenv("PORT"),
@@ -128,4 +132,14 @@ func (c *Celeritas) startLoggers() (*log.Logger, *log.Logger) {
 	errorLog = log.New(os.Stdout, "ERROR\t", log.Ldate|log.Ltime|log.Lshortfile)
 
 	return infoLog, errorLog
+}
+
+func (c *Celeritas) createRenderer(cel *Celeritas) *render.Render {
+	myRenderer := render.Render{
+		Renderer: c.config.renderer,
+		RootPath: cel.RootPath,
+		Port:     cel.config.port,
+	}
+
+	return &myRenderer
 }
